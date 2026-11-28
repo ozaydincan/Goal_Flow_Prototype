@@ -52,8 +52,8 @@ pre-registered. **Running (approved): final test-seed run**, seeds 400000-400499
 73.4 %, below the opponent, (c) (except L4, n.s.) and (a)+filter at every level.
 
 **Juno-conditions track (research; Phase 0 done 2026-11-28, PR #7):** mechanism confirmed and the full plan
-pre-registered in DEVIATIONS ("Juno-conditions track"). Phases 1 (code + sem_course stats + new baselines + data), 2
-(Kaggle training), 3 (evaluation) each wait for Can's approval. Nothing running.
+pre-registered in DEVIATIONS ("Juno-conditions track", incl. the amendment: phases 0-5). Phase 1 needs the Silesia Ring
+export (Blender / OpenDRIVE: not on this Mac). Each phase waits for Can's approval. Nothing running.
 
 **Follow-ups DONE 07:56 (DEVIATIONS "Follow-up results"):** nofix not ported (2 vs 1 collisions pooled, L3 1 vs 0;
 within noise, rule applied as registered); (a)+filter and nofix unaffected by juno_bangbang (0 collisions); GoalFlow

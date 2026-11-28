@@ -949,6 +949,35 @@ Research track; (a)+filter stays the car planner. Frozen configs and all earlier
 started only on Can's approval: 1 data generation (+ the code below and the new baselines), 2 training (Kaggle), 3
 evaluation. Every value marked *estimate* is a parameter until confirmed.
 
+**Amendment (consolidated prompt, 2026-11-28; supersedes the phase list above where they differ).** Phases, each
+started only on Can's approval: 0 analysis + pre-registration (this section); 1 track export + loader + sem_course
+scenes + slow_not_stop, with a regression check that existing configs reproduce their logged rows exactly and renders of
+3 scenes on the real track (fixed rule: the first 3 feasible dev seeds at L0, recorded in the folder's RULE.txt); 2 new
+classical baselines (C); 3 GoalFlow data generation (Mac); 4 training (Kaggle, Can runs the notebook); 5 GoalFlow
+evaluation on dev seeds, then (after Can's go) the fresh test range once.
+- **Real track (Silesia Ring).** Source to be exported from the team's Blender model (or the CARLA map's OpenDRIVE file
+  if one exists): centreline and left / right edge polylines with edge type per segment (white line / curb / grass) and
+  width along the track, committed as a versioned polyline file with its source noted (no proprietary model files).
+  **Status at Phase 0: no Blender model or OpenDRIVE file is on this Mac;** the only track files found are recorded GNSS
+  waypoints in the AD-SEM repo near 45.15 N, 8.35 E (not the Silesia Ring; driven paths without edges or widths; not
+  used, not copied). Phase 1 needs the export from Can or a teammate; a Blender export script (`bpy`, centreline + edge
+  curves to the polyline format) is written in Phase 1 for them to run. Until the track exists, the generic track stays
+  the default (earlier results reproduce) and sem_course runs on the generic track are not started. The loader adds a
+  polyline track (Frenet s, d along the centreline; width and edge type per station); the obstacle sector (25-30 m) and
+  the stop line are placed on a straight-enough part of the ring (rule fixed when the polylines exist). Reported once
+  loaded: width range, tightest curvature vs Juno's 9.1 m minimum radius, and whether any curve itself needs more than
+  10 deg steering.
+- **Seed ranges.** C and D(e) name dev seeds 0-499 for evaluation; under the sem_course preset these seed numbers
+  generate new scenes (a scene is a function of preset and seed), so earlier generic-scene results are not reused. Train
+  600000-614999, val 700000-701499, fresh test 500000-500499 (never used). (If Can prefers a separate dev range for the
+  new scenes, 800000-800499 is reserved for it.)
+- **Kaggle (E).** Phase 3 ends with `scripts/prepare_kaggle_upload.py` (copies the memmap dataset, scene index and the
+  seed-0 checkpoint / vocabulary / norm into an upload folder outside git, with a manifest and checksums) and a private
+  notebook `kaggle/train_juno.ipynb` (installs the repo at the training commit from the fork, runs `gfsem.train` with the
+  settings above on cuda with AMP, resumes from the latest checkpoint in /kaggle/working, writes checkpoints and logs
+  every 30 min). Stage A (<= 2 h) + B (<= 3 h) fit one 12 h session. Can uploads the datasets (private), runs the
+  notebook and downloads the outputs into `runs/l2_juno_seed0/`. GPU type, versions and wall time recorded here.
+
 **Phase 0 finding (mechanism, confirmed).** Waypoints are time-based: targets are the teacher's driven future, 16 poses
 at 0.25 s at the scene's 3 m/s (`DatasetConfig.horizon_dt`, `track_future`), and the rollout drives each candidate at
 its own timestamps with the speed from its spacing (`models/rollout.py`). Diagnostic replay (`scripts/diagnose_speed_
