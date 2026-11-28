@@ -51,6 +51,10 @@ pre-registered. **Running (approved): final test-seed run**, seeds 400000-400499
 94.9 / 93.2 / 91.3 / 86.0 %; goalflow_final: collisions 0 / 0 / 0 / 0.2 / 0.2 %, success 87.9 / 89.0 / 86.3 / 81.0 /
 73.4 %, below the opponent, (c) (except L4, n.s.) and (a)+filter at every level.
 
+**Juno-conditions track (research; Phase 0 done 2026-11-28, PR #7):** mechanism confirmed and the full plan
+pre-registered in DEVIATIONS ("Juno-conditions track"). Phases 1 (code + sem_course stats + new baselines + data), 2
+(Kaggle training), 3 (evaluation) each wait for Can's approval. Nothing running.
+
 **Follow-ups DONE 07:56 (DEVIATIONS "Follow-up results"):** nofix not ported (2 vs 1 collisions pooled, L3 1 vs 0;
 within noise, rule applied as registered); (a)+filter and nofix unaffected by juno_bangbang (0 collisions); GoalFlow
 juno: collisions from the brake delay (delay 0: 32 -> 1), success collapse from the speed below its 3 m/s training speed.
