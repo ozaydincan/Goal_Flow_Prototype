@@ -943,6 +943,95 @@ candidate" brakes made worse by the 0.3 s delay; the constant 2.0 m/s run (insta
 (3 m/s; speed out of range). The classical planners are unaffected by either. GoalFlow would need training data at
 Juno's 1.6-2.4 m/s before it could run with the real speed control.
 
+### Juno-conditions track: sem_course, slow_not_stop, GoalFlow retraining (PRE-REGISTERED 2026-11-28, before any data or run)
+
+Research track; (a)+filter stays the car planner. Frozen configs and all earlier results stay untouched. Phases, each
+started only on Can's approval: 1 data generation (+ the code below and the new baselines), 2 training (Kaggle), 3
+evaluation. Every value marked *estimate* is a parameter until confirmed.
+
+**Phase 0 finding (mechanism, confirmed).** Waypoints are time-based: targets are the teacher's driven future, 16 poses
+at 0.25 s at the scene's 3 m/s (`DatasetConfig.horizon_dt`, `track_future`), and the rollout drives each candidate at
+its own timestamps with the speed from its spacing (`models/rollout.py`). Diagnostic replay (`scripts/diagnose_speed_
+mechanism.py`, goalflow_final, dev seeds 0-5 at L0; per-scan medians): at 3.0 m/s executed path 11.94 m, raw sample
+11.94 m, selected goals 11.92 m, brake rate 4.8%; at 2.0 m/s executed 7.91 m, raw 9.35 m, selected goals 8.48 m, brake
+rate 10.1%. The goal vocabulary's endpoints sit at 11.62-11.98 m (10th-90th percentile; median 11.88 m), so at 2 m/s
+the scorer is pushed to the vocabulary's rare short tail and the executed paths are a third shorter, below the ~10 m a
+10 deg car needs to change lane around a pin. The 0.3 s brake-delay collisions are separate (follow-up 3).
+
+**A. Scene preset `sem_course`** (source: Shell Eco-marathon 2026 Autonomous Competition Rules, Chapter IV, Art.
+406-408; Chapter II not yet published):
+- Obstacles: blue inflatable pins only, radius 0.225 m, height 1.10 m (the rules' 0.45 m diameter; identical to the
+  simulator's bollards, so earlier results remain valid for obstacle size). Static. No cones as obstacles.
+- Course length 25-30 m and 8-12 pins, uniform per seed (*estimates*); track width 12 m (*estimate*). Placement rules
+  otherwise as the current generator (rows / scatter / wall, min spacing, edge keep-out, ~5% no-route scenes);
+  feasibility by the privileged teacher (oracle). Door rule unchanged: gap - 2r >= 1.165 + 0.5 m, i.e. >= 2.115 m
+  between pin centres.
+- Edge markers: orange cones on or outside the edge only (never inside), in a share of scenes (where the line would be
+  unclear and at the track exit); boundary, not obstacles (contact = track exit). Placement: 0-6 per scene at the
+  edge (*estimate*), cone geometry as before.
+- Stop line: one per scene at a fixed fraction of the course (uniform 0.4-0.6 of the field length, *estimate*), with a
+  stop sign on a yellow board at the side: post (radius 0.03 m, ground to board top) outside the edge plus a 0.6 m wide
+  board whose lower edge is 0.5-1.0 m above the track (uniform) and 0.6 m tall. Simulator change: obstacles get a
+  bottom height (default 0), and a beam hits an obstacle only if its height at that range lies between bottom and top
+  (pins and cones unchanged). The board is modelled as a chain of 0.05 m circles; it has no camera class of its own
+  (label "other"), so perception and the filter are tested against a non-pin trackside object.
+- Mandatory stop: the car must stop completely within 3.5 m before the stop line, then continue (rule). All planners get
+  the same stop-line behaviour from the speed policy (B): target the stop, hold 1.0 s stationary, resume.
+- Stall limit: an episode fails if the car is stationary for more than 30 s at any point (rule 407f); this replaces the
+  40 s timeout for these scenes, and the mandatory stop counts toward it. Overall episode time limit 120 s.
+- Report before any planner run: share of infeasible scenes and the distribution of door widths, sem_course vs the
+  current generator (dev seeds 0-499).
+
+**B. Speed policy `slow_not_stop`** (all planners: classical, (a)+filter, GoalFlow; with juno_bangbang dynamics):
+- Safe plan with full margin -> nominal speed (the 6-8 km/h valve band).
+- Uncertain (the planner would brake: the filter rejects the new plan, no safe candidate, or no route found) -> target
+  4 km/h (1.11 m/s), keep following the last accepted plan (or the track direction if there is none), keep replanning.
+- Brake only if the executed path of the plan being followed (simulated at the current speed) comes within 0.12 m of an
+  observed obstacle circle inside the stopping distance at the current speed (v * (0.1 s scan + 0.3 s brake delay) +
+  v^2 / (2 * 3.0 m/s^2)). Planners without their own circle set ((a), (b), (c)) use `cluster_obstacles` of the scan.
+- Slowing from 8 to 4 km/h, two variants, both reported: (i) coasting with the valve closed (0.1 m/s^2, *assumption*;
+  ~11 s and ~18 m from 2.22 to 1.11 m/s) and (ii) light braking (0.5 m/s^2, *assumption*; ~2.2 s and ~3.7 m). Primary
+  = (ii); (i) as a sensitivity run for (a)+filter.
+- Metrics added: time and distance at 4 km/h; minimum true clearance per episode (p5 over episodes); emergency brakes
+  per episode; collisions split by speed level (nominal / slow / braking); braking events and speed changes per episode
+  (energy proxy: the competition is scored on efficiency); stop-line stop within 3.5 m (yes/no); stall-limit failures.
+
+**C. New baselines (before any GoalFlow result):** dev seeds 0-499 x L0-L4 with sem_course + slow_not_stop (variant ii)
++ roof mount + juno_bangbang: (a), (b), (c), (a)+filter (memory fix, as frozen). The per-level opponent for GoalFlow is
+re-picked from these runs alone by the existing rule (best classical config per level) and recorded here before any
+GoalFlow run under these conditions.
+
+**D. GoalFlow retraining:**
+- (a) Parameterisation: **distance-based** waypoints: 16 points at equal arc length over 12 m (0.75 m spacing) along the
+  teacher's driven path; speed handled separately (the speed policy commands speed; the rollout drives every candidate
+  at the commanded speed and returns executed positions at the same arc-length stations). Reasons: path geometry no
+  longer depends on speed, so 1.6-2.4 m/s and the 4 km/h slow mode see the same ~12 m horizon; the existing vocabulary
+  (endpoints at 11.6-12.0 m) stays valid, so the goal scorer and vocabulary need no rebuild. Rejected: time-based with a
+  1.6-2.4 m/s speed range, which makes goal distance speed-dependent (8-10 m paths at 2 m/s) and needs a rebuilt,
+  speed-conditioned vocabulary.
+- (b) Data: sem_course scenes, roof mount, EMX beam pattern (0.08 deg steps) with the L0-L4 noise mix as before (L0 15,
+  L1 25, L2 25, L3 20, L4 15%), teacher driving with juno_bangbang under slow_not_stop (speeds 1.1-2.45 m/s), stops at
+  the stop line, recovery frames as before (p 0.3, 1.0 m / 15 deg). New seeds: train 600000-614999 (300 shards x 50
+  scenes), val 700000-701499 (30 shards); output `data/sim_juno/` (the 100000+/200000+ files are not reused or
+  overwritten). Dev evaluation seeds 0-499 (sem_course); fresh test 500000-500499.
+- (c) Training: initialise encoder, goal scorer (incl. vocabulary and norm) and generator from
+  `runs/l2_full_seed0`; nothing is re-initialised (the parameterisation keeps the 16 x 2 output and the ~12 m endpoints);
+  fine-tune all weights. Output `runs/l2_juno_seed0` (seed0 never overwritten). Settings as the seed-0 run (AdamW 3e-4
+  cosine, wd 0.01, bs 64, accum-A 2, vocab 1024, w5 0.1) except budgets: stage A at most 2.0 h, stage B at most 3.0 h of
+  GPU time, eval every 30 min, early stop after 4 evaluations without improvement (patience 4), best checkpoint by the
+  existing metrics (A: l_goal; B: ADE_driven). No regression baseline. Compute: Kaggle GPU, CUDA AMP (torch.autocast
+  fp16 + GradScaler, as `gfsem.train` already does on CUDA); checkpoints and logs every 30 min to /kaggle/working;
+  resume from the latest checkpoint. Data and weights as PRIVATE Kaggle datasets only. GPU type, versions and wall time
+  recorded here after the run.
+- (d) Earlier braking, one change tested alone: a soft clearance critic on the circle set, -1.0 * clamp((0.25 - d) /
+  0.25, 0, 1) with d the box-to-circle distance along the executed path (same form as the edge critic, weight 1.0, no
+  normalisation), so GoalFlow prefers candidates with margin instead of keeping 0.12 m paths until they are rejected at
+  the last moment. The 0.12 m filter stays. Tested alone on dev seeds 0-99 x L0 / L2 / L4 vs the retrained model
+  without it; acceptance: collisions do not rise AND emergency brakes or stalls drop.
+- (e) Evaluation: dev seeds 0-499 x L0-L4, roof mount, juno_bangbang, slow_not_stop (ii), sem_course, vs (a)+filter and
+  the re-picked opponent under the same conditions (McNemar per level). Fresh test range 500000-500499, never touched,
+  used once at the end for the frozen retrained config and the baselines.
+
 ### Real-stack note: near-field visibility of the EMX (2026-11-25)
 
 With the sensor at the front axle (1.60 m ahead of the rear axle, 1.10 m high, pitched 7 deg down, lower beam
